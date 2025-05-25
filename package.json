@@ -1,0 +1,19 @@
+{
+  "name": "map-my-mind-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/client",
+    "apps/server"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -r \"pnpm --filter client dev\" \"pnpm --filter server dev\"",
+    "build": "pnpm --filter client build && pnpm --filter server build",
+    "lint": "pnpm --filter client lint && pnpm --filter server lint",
+    "typecheck": "pnpm --filter client typecheck && pnpm --filter server typecheck",
+    "test": "pnpm --filter client test && pnpm --filter server test"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
