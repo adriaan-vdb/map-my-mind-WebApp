@@ -10,6 +10,30 @@ Synaptia is a full‑stack web application that converts unstructured notes or s
 
 ---
 
+## Demo
+
+<p align="center">
+  <img src="./Demo/Home.png" alt="Home Page" width="600" />
+  <br><b>Home Page</b> – Entry point for users to start mapping their thoughts.
+</p>
+
+<p align="center">
+  <img src="./Demo/Dashbaord.png" alt="Dashboard" width="600" />
+  <br><b>Dashboard</b> – View, rename, delete, and open saved mind maps.
+</p>
+
+<p align="center">
+  <img src="./Demo/MindMapEditor.png" alt="Mind Map Editor" width="600" />
+  <br><b>Mind Map Editor</b> – The main interface for generating, editing, and exploring mind maps.
+</p>
+
+<p align="center">
+  <img src="./Demo/MindMapFunctionality.png" alt="Mind Map Functionality" width="600" />
+  <br><b>Mind Map Functionality</b> – Demonstrates node actions, AI features, and detail-level slider.
+</p>
+
+---
+
 ## Feature Checklist
 
 | #  | Feature                       | Mandatory | Description                                                |
