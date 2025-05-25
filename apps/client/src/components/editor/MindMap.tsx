@@ -6,6 +6,11 @@ import { InformationCircleIcon, EllipsisVerticalIcon, PlusIcon, BookmarkIcon, Sp
 import { Dialog } from '@headlessui/react';
 import Cytoscape from 'cytoscape';
 import edgehandles from 'cytoscape-edgehandles';
+// @ts-ignore
+import fcose from 'cytoscape-fcose';
+
+// Fix TypeScript error for missing cytoscape-fcose types
+declare module 'cytoscape-fcose';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -29,6 +34,7 @@ function debounce<T extends (...args: any[]) => void>(fn: T, ms: number) {
 // Ensure plugin registration is at the top (already present, but keep for clarity)
 if (!(Cytoscape as any).registeredEh) {
   Cytoscape.use(edgehandles);
+  Cytoscape.use(fcose);
   (Cytoscape as any).registeredEh = true;
 }
 
@@ -77,11 +83,34 @@ export default function MindMap() {
   const [insightLoading, setInsightLoading] = useState(false);
   const [insightError, setInsightError] = useState<string | null>(null);
 
+  // Typing animation for heading
+  const TYPING_TEXT = "enter streams of consciousness...";
+  const [typedText, setTypedText] = useState("");
+  const [typingForward, setTypingForward] = useState(true);
+
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    if (typingForward) {
+      if (typedText.length < TYPING_TEXT.length) {
+        timeout = setTimeout(() => setTypedText(TYPING_TEXT.slice(0, typedText.length + 1)), 80);
+      } else {
+        timeout = setTimeout(() => setTypingForward(false), 1200);
+      }
+    } else {
+      if (typedText.length > 0) {
+        timeout = setTimeout(() => setTypedText(TYPING_TEXT.slice(0, typedText.length - 1)), 40);
+      } else {
+        timeout = setTimeout(() => setTypingForward(true), 600);
+      }
+    }
+    return () => clearTimeout(timeout);
+  }, [typedText, typingForward]);
+
   // Responsive graph height
   useEffect(() => {
     function handleResize() {
       if (containerRef.current) {
-        setGraphHeight(containerRef.current.offsetHeight - 120);
+        setGraphHeight(containerRef.current.offsetHeight);
       }
     }
     handleResize();
@@ -187,6 +216,10 @@ export default function MindMap() {
       const data = await res.json();
       setNodes(data.nodes);
       setEdges(data.edges);
+      // Automatically reformat the graph after generating
+      setTimeout(() => {
+        handleReformat();
+      }, 0);
     } catch (err: any) {
       setError(err.message || 'Unknown error');
       setNodes([]);
@@ -336,8 +369,21 @@ export default function MindMap() {
   // Delete edge from context menu
   const handleDeleteEdgeMenu = () => {
     if (!edgeMenu) return;
-    setEdges(edges.filter(e => e.id !== edgeMenu.id));
-    setNewEdges(newEdges.filter(e => e.id !== edgeMenu.id));
+    setEdges(edges.filter(e => {
+      if (e.id) {
+        return e.id !== edgeMenu.id;
+      } else {
+        // fallback: match by source/target if id is missing
+        return !(e.source === edgeMenu.source && e.target === edgeMenu.target);
+      }
+    }));
+    setNewEdges(newEdges.filter(e => {
+      if (e.id) {
+        return e.id !== edgeMenu.id;
+      } else {
+        return !(e.source === edgeMenu.source && e.target === edgeMenu.target);
+      }
+    }));
     setEdgeMenu(null);
   };
 
@@ -514,68 +560,118 @@ export default function MindMap() {
     }
   };
 
+  // Handler to reformat (spread out) the map
+  const handleReformat = () => {
+    const cy = cyRef.current;
+    if (cy) {
+      cy.layout({
+        name: 'fcose',
+        quality: 'proof', // maximize quality
+        randomize: true,
+        animate: true,
+        animationDuration: 1000,
+        fit: true,
+        padding: 80,
+        nodeRepulsion: 100000,
+        idealEdgeLength: 200,
+        edgeElasticity: 0.1,
+        gravity: 0.25,
+        gravityRange: 3.8,
+        nodeSeparation: 200,
+        packComponents: true,
+        tilingPaddingVertical: 40,
+        tilingPaddingHorizontal: 40,
+        nodeDimensionsIncludeLabels: true,
+      }).run();
+    }
+  };
+
+  // Reformat the map when a map is loaded from the dashboard
+  useEffect(() => {
+    // Only reformat if a map is loaded (not on initial empty state)
+    if (selectedMapId && nodes.length > 0) {
+      // Debounce to avoid running too often
+      const timeout = setTimeout(() => {
+        handleReformat();
+      }, 200);
+      return () => clearTimeout(timeout);
+    }
+  }, [selectedMapId]);
+
   return (
-    <div ref={containerRef} className="min-h-screen flex flex-col md:flex-row gap-8 bg-gray-50 p-4 md:p-8 relative">
-      {/* Left: Form and controls */}
-      <div className="md:w-1/3 w-full flex flex-col gap-4">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="font-semibold text-lg">Paste or type your notes:</span>
-          <button type="button" onClick={() => setShowInfo(true)} className="ml-1 text-blue-600 hover:text-blue-800">
-            <InformationCircleIcon className="w-5 h-5" />
+    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-pink-50 to-yellow-50 font-sans flex flex-col md:flex-row">
+      {/* Left: Sidebar */}
+      <div className="md:w-[500px] w-full flex-shrink-0 bg-blue-50/60 border-r border-blue-100 flex flex-col gap-6 p-6 min-h-screen">
+        <div className="flex items-center gap-2 mb-1">
+          <button type="button" onClick={() => setShowInfo(true)} className="mr-2 text-blue-600 hover:text-blue-700 transition">
+            <InformationCircleIcon className="w-6 h-6" />
           </button>
+          <span className="font-extrabold text-2xl text-gray-900">
+            <span className="whitespace-nowrap">{typedText}<span className="border-r-2 border-pink-400 animate-pulse ml-0.5" style={{display:'inline-block',width:2,height:'1.2em',verticalAlign:'middle'}}></span></span>
+          </span>
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 bg-white rounded shadow p-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <textarea
-            className="w-full min-h-[100px] p-3 border rounded resize-y"
+            className="w-full min-h-[400px] p-4 border-2 border-blue-100 rounded-2xl bg-blue-50 focus:border-pink-300 focus:ring-2 focus:ring-pink-100 text-lg transition"
             placeholder="e.g. Productivity, time management, healthy habits..."
             value={input}
             onChange={e => setInput(e.target.value)}
             disabled={loading}
           />
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex flex-col gap-2">
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+              className="px-5 py-2 bg-blue-600 text-white rounded-full font-semibold shadow hover:bg-blue-700 transition disabled:opacity-50"
               disabled={loading || !input.trim()}
             >
-              {loading ? 'Generating...' : 'Generate Mind Map'}
+              <span className="text-white">{loading ? 'Generating...' : 'Generate Mind Map'}</span>
             </button>
-            <button
-              type="button"
-              className="px-4 py-2 bg-gray-200 rounded"
-              onClick={handleReset}
-              disabled={loading}
-            >
-              Reset
-            </button>
-            <button
-              type="button"
-              className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-1"
-              onClick={() => setShowSave(true)}
-              disabled={nodes.length === 0}
-            >
-              <BookmarkIcon className="w-5 h-5" /> Save Map
-            </button>
-          </div>
-        </form>
-        {/* Sample prompts below textarea */}
-        <div className="flex flex-wrap gap-2 mt-4">
-          {SAMPLE_PROMPTS.map((prompt, i) => (
+            <div className="flex gap-2 flex-row mt-0">
+            {SAMPLE_PROMPTS.map((prompt, i) => (
             <button
               key={i}
               type="button"
-              className="px-3 py-1 bg-white border border-blue-200 rounded-full text-sm shadow hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+              className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition"
               onClick={() => setInput(prompt.value)}
               disabled={loading}
             >
               {prompt.label}
             </button>
           ))}
-        </div>
+              <button
+                type="button"
+                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition"
+                onClick={handleReformat}
+                disabled={nodes.length === 0}
+              >
+                Reformat
+              </button>
+              <button
+                type="button"
+                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition"
+                onClick={handleReset}
+                disabled={loading}
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition"
+                onClick={() => setShowSave(true)}
+                disabled={nodes.length === 0}
+                title="Save Map"
+              >
+                <BookmarkIcon className="w-5 h-5" />
+              </button>
+
+            </div>
+          </div>
+        </form>
+        {/* Sample prompts below textarea */}
         {error && <div className="text-red-600 bg-white rounded shadow p-2 mt-2">{error}</div>}
         {/* Generate Insight button below suggestions */}
         <button
-          className="mt-2 px-4 py-2 bg-purple-600 text-white rounded flex items-center gap-2 shadow hover:bg-purple-700 w-fit"
+          className="mt-2 px-5 py-2 bg-purple-500 text-white rounded-full font-semibold shadow hover:bg-purple-600 w-fit transition flex items-center gap-2"
           onClick={handleGenerateInsight}
           disabled={insightLoading || nodes.length === 0}
           title="Analyze your mind map with AI"
@@ -585,7 +681,7 @@ export default function MindMap() {
         </button>
         {/* Insight panel below the button */}
         {insightOpen && (
-          <div className="mt-2 bg-white border border-purple-200 rounded shadow p-4 space-y-4">
+          <div className="mt-2 bg-white border-2 border-purple-200 rounded-2xl shadow-lg p-4 space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <SparklesIcon className="w-6 h-6 text-purple-500" />
               <span className="text-lg font-bold">Mind Map Insight</span>
@@ -597,252 +693,269 @@ export default function MindMap() {
               <div className="space-y-4">
                 <div>
                   <div className="font-semibold text-gray-700 mb-1">High-level Insight</div>
-                  <div className="bg-gray-50 rounded p-2 text-gray-800">{insight.insight}</div>
+                  <div className="text-gray-800">{insight.insight}</div>
                 </div>
                 <div>
                   <div className="font-semibold text-gray-700 mb-1">Potential Blind Spot</div>
-                  <div className="bg-gray-50 rounded p-2 text-gray-800">{insight.blindSpot}</div>
+                  <div className="text-gray-800">{insight.blindSpot}</div>
                 </div>
                 <div>
                   <div className="font-semibold text-gray-700 mb-1">Key Clusters / Patterns</div>
-                  <div className="bg-gray-50 rounded p-2 text-gray-800">{insight.clusters}</div>
+                  <div className="text-gray-800">{insight.clusters}</div>
                 </div>
               </div>
             )}
           </div>
         )}
       </div>
-      {/* Right: Graph or placeholder */}
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] relative">
-        {nodes.length === 0 && !loading && !error && (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400 select-none">
-            <svg width="80" height="80" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="mb-4"><circle cx="12" cy="12" r="10" strokeWidth="2" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h8m-4-4v8" /></svg>
-            <div className="text-lg">Your mind map will appear here</div>
-          </div>
-        )}
-        {nodes.length > 0 && (
-          <div className="w-full h-full min-h-[400px] relative">
-            <CytoscapeComponent
-              cy={(cy: Cytoscape.Core) => {
-                cyRef.current = cy;
-                initEdgeHandles(cy);
-                // Add right-click handler for background
-                cy.on('cxttap', (evt: any) => {
-                  if (evt.target === cy) {
-                    // Get mouse position relative to viewport
-                    const { x, y } = evt.originalEvent;
-                    setAddNodePos({ x, y });
-                    setShowAddNode(true);
-                  }
-                });
-              }}
-              elements={elements}
-              style={{ width: '100%', height: graphHeight || 400 }}
-              layout={{ name: 'breadthfirst', fit: true, directed: true, padding: 30 }}
-              stylesheet={[
-                {
-                  selector: 'node',
-                  style: {
-                    'background-color': '#2563eb',
-                    'label': 'data(label)',
-                    'color': '#fff',
-                    'text-valign': 'center',
-                    'text-halign': 'center',
-                    'font-size': 16,
-                    'width': 120,
-                    'height': 50,
-                    'shape': 'roundrectangle',
-                    'text-wrap': 'wrap',
-                    'text-max-width': 100,
-                    'overlay-padding': 8,
-                    'font-style': 'data(aiSuggested)',
-                    'text-decoration': 'data(aiSuggested)',
-                  },
-                },
-                {
-                  selector: 'node[aiSuggested]',
-                  style: {
-                    'background-color': '#a5b4fc',
-                    'font-style': 'italic',
-                    'text-decoration': 'underline dotted',
-                  },
-                },
-                {
-                  selector: 'edge',
-                  style: {
-                    'width': 3,
-                    'line-color': '#a5b4fc',
-                    'target-arrow-color': '#a5b4fc',
-                    'target-arrow-shape': 'triangle',
-                    'curve-style': 'bezier',
-                  },
-                },
-                {
-                  selector: 'edge[newEdge]',
-                  style: {
-                    'line-color': '#f59e42', // orange highlight
-                    'target-arrow-color': '#f59e42',
-                    'width': 4,
-                    'line-style': 'dashed',
-                    'z-index': 999,
-                  },
-                },
-                {
-                  selector: 'edge.circular',
-                  style: {
-                    'line-color': '#e11d48', // red for circular
-                    'target-arrow-color': '#e11d48',
-                    'width': 4,
-                    'line-style': 'dotted',
-                  },
-                },
-              ]}
-              minZoom={0.2}
-              maxZoom={2}
-              wheelSensitivity={1}
-            />
-            {/* Save new edges button */}
-            {newEdges.length > 0 && (
-              <button
-                className="absolute top-2 right-2 px-4 py-2 bg-orange-500 text-white rounded shadow z-50"
-                onClick={handleSaveNewEdges}
-              >
-                Save New Connections
-              </button>
-            )}
-            {/* Edge context menu */}
-            {edgeMenu && (
-              <div
-                style={{
-                  position: 'fixed',
-                  left: edgeMenu.x,
-                  top: edgeMenu.y,
-                  zIndex: 1000,
-                  background: 'white',
-                  border: '1px solid #d1d5db',
-                  borderRadius: 8,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                  minWidth: 120,
-                  padding: 8,
+      {/* Right: Main Map Area */}
+      <div className="flex-1 flex flex-col min-h-screen bg-white">
+        <div className="flex-1 w-full h-full flex items-center justify-center relative min-h-screen">
+          {nodes.length === 0 && !loading && !error ? (
+            <div className="flex flex-col items-center justify-center h-full text-black-200 select-none">
+              <div className="mb-4 text-7xl">➕</div>
+              <div className="text-2xl font-bold">Your mind map will appear here</div>
+              <div className="text-base text-black-300 mt-2">Start by entering your notes and clicking <span className='font-semibold text-blue-600'>Generate Mind Map</span>!</div>
+            </div>
+          ) : (
+            <div ref={containerRef} className="relative w-full h-full flex-1 min-h-screen">
+              <CytoscapeComponent
+                cy={(cy: Cytoscape.Core) => {
+                  cyRef.current = cy;
+                  initEdgeHandles(cy);
+                  // Add right-click handler for background
+                  cy.on('cxttap', (evt: any) => {
+                    if (evt.target === cy) {
+                      // Get mouse position relative to viewport
+                      const { x, y } = evt.originalEvent;
+                      setAddNodePos({ x, y });
+                      setShowAddNode(true);
+                    }
+                  });
                 }}
-                onClick={e => e.stopPropagation()}
-              >
+                elements={elements}
+                style={{ width: '100%', height: graphHeight }}
+                layout={{ name: 'preset' }}
+                stylesheet={[
+                  {
+                    selector: 'node',
+                    style: {
+                      'background-color': '#2563eb',
+                      'label': 'data(label)',
+                      'color': '#fff',
+                      'text-valign': 'center',
+                      'text-halign': 'center',
+                      'font-size': 16,
+                      'width': 120,
+                      'height': 50,
+                      'shape': 'roundrectangle',
+                      'text-wrap': 'wrap',
+                      'text-max-width': 100,
+                      'overlay-padding': 8,
+                      'font-style': 'data(aiSuggested)',
+                      'text-decoration': 'data(aiSuggested)',
+                    },
+                  },
+                  {
+                    selector: 'node[aiSuggested]',
+                    style: {
+                      'background-color': '#a5b4fc',
+                      'font-style': 'italic',
+                      'text-decoration': 'underline dotted',
+                    },
+                  },
+                  {
+                    selector: 'edge',
+                    style: {
+                      'width': 3,
+                      'line-color': '#a5b4fc',
+                      'target-arrow-color': '#a5b4fc',
+                      'target-arrow-shape': 'triangle',
+                      'curve-style': 'bezier',
+                    },
+                  },
+                  {
+                    selector: 'edge[newEdge]',
+                    style: {
+                      'line-color': '#f59e42', // orange highlight
+                      'target-arrow-color': '#f59e42',
+                      'width': 4,
+                      'line-style': 'dashed',
+                      'z-index': 999,
+                    },
+                  },
+                  {
+                    selector: 'edge.circular',
+                    style: {
+                      'line-color': '#e11d48', // red for circular
+                      'target-arrow-color': '#e11d48',
+                      'width': 4,
+                      'line-style': 'dotted',
+                    },
+                  },
+                ]}
+                minZoom={0.2}
+                maxZoom={2}
+                wheelSensitivity={1}
+              />
+              {/* Save new edges button */}
+              {newEdges.length > 0 && (
                 <button
-                  className="w-full text-left px-3 py-2 rounded hover:bg-red-50 text-red-600"
-                  onClick={handleDeleteEdgeMenu}
+                  className="absolute top-2 right-2 px-4 py-2 bg-orange-500 text-white rounded shadow z-50"
+                  onClick={handleSaveNewEdges}
                 >
-                  Delete Edge
+                  Save New Connections
                 </button>
-              </div>
-            )}
-            {suggestedNodes && (
-              <div className="absolute top-8 right-8 z-50 bg-white border border-blue-200 rounded shadow-lg p-4 flex flex-col gap-2 min-w-[260px]">
-                <div className="flex items-center gap-2 mb-2">
-                  <SparklesIcon className="w-5 h-5 text-blue-500" />
-                  <span className="italic text-blue-700">AI-suggested children</span>
-                </div>
-                <ul className="mb-2">
-                  {suggestedNodes.nodes.map(n => (
-                    <li key={n.id} className="flex items-center gap-2 italic text-gray-700">
-                      <SparklesIcon className="w-4 h-4 text-blue-400" />
-                      <span>{n.label}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="flex gap-2">
-                  <button className="flex-1 flex items-center justify-center gap-1 px-3 py-1 bg-blue-600 text-white rounded shadow hover:bg-blue-700" onClick={handleAcceptSuggestions}>
-                    <CheckIcon className="w-4 h-4" /> Accept
+              )}
+              {/* Edge context menu */}
+              {edgeMenu && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    left: edgeMenu.x,
+                    top: edgeMenu.y,
+                    zIndex: 1000,
+                    background: 'white',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                    minWidth: 120,
+                    padding: 8,
+                  }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <button
+                    className="w-full text-left px-3 py-2 rounded hover:bg-red-50 text-red-600"
+                    onClick={handleDeleteEdgeMenu}
+                  >
+                    Delete Edge
                   </button>
-                  <button className="flex-1 flex items-center justify-center gap-1 px-3 py-1 bg-gray-200 text-gray-700 rounded shadow hover:bg-gray-300" onClick={handleRemoveSuggestions}>
-                    <XMarkIcon className="w-4 h-4" /> Remove
-                  </button>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-        {/* NodeMenu, Save, Add Node, and Info modals rendered at the end for accessibility */}
-        {menuNode && menuPos && (
-          <div
-            id="node-menu-popup"
-            style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, zIndex: 50 }}
-          >
-            <NodeMenu
-              node={nodes.find(n => n.id === menuNode)!}
-              onExpand={() => handleExpand(menuNode)}
-              onRename={label => handleRename(menuNode, label)}
-              onDelete={() => handleDelete(menuNode)}
-              onAddEdge={() => {
-                setAddEdgeSource(menuNode);
-                setMenuNode(null);
-              }}
-              onSuggestChildren={() => handleSuggestChildren(menuNode)}
-              loading={expandLoading || suggestLoading}
-              error={expandError || suggestError}
-            />
-          </div>
-        )}
-        <Dialog open={showSave} onClose={() => setShowSave(false)} className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black bg-opacity-30" aria-hidden="true" />
-          <div className="bg-white rounded shadow-lg p-6 max-w-sm relative z-10">
-            <button type="button" className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowSave(false)}>&times;</button>
-            <Dialog.Title className="text-lg font-bold mb-2">Save Mind Map</Dialog.Title>
-            <input
-              className="border rounded px-3 py-2 w-full mb-3"
-              placeholder="Map name"
-              value={saveName}
-              onChange={e => setSaveName(e.target.value)}
-              autoFocus
-              onKeyDown={e => { if (e.key === 'Enter') handleSaveMap(); }}
-            />
-            <button
-              type="button"
-              className="px-4 py-2 bg-green-600 text-white rounded w-full"
-              onClick={handleSaveMap}
-              disabled={!saveName.trim()}
-            >Save</button>
-          </div>
-        </Dialog>
-        <Dialog open={showAddNode} onClose={() => setShowAddNode(false)} className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black bg-opacity-30" aria-hidden="true" />
-          <div
-            className="bg-white rounded shadow-lg p-6 max-w-sm relative z-10"
-            style={addNodePos ? { position: 'fixed', left: addNodePos.x, top: addNodePos.y, maxWidth: 320 } : {}}
-          >
-            <button type="button" className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowAddNode(false)}>&times;</button>
-            <Dialog.Title className="text-lg font-bold mb-2">Add Node</Dialog.Title>
-            <input
-              className="border rounded px-3 py-2 w-full mb-3"
-              placeholder="Node label"
-              value={newNodeLabel}
-              onChange={e => setNewNodeLabel(e.target.value)}
-              autoFocus
-              onKeyDown={e => { if (e.key === 'Enter') handleAddNode(); }}
-            />
-            <button
-              type="button"
-              className="px-4 py-2 bg-blue-600 text-white rounded w-full"
-              onClick={handleAddNode}
-              disabled={!newNodeLabel.trim()}
-            >Add Node</button>
-          </div>
-        </Dialog>
-        <Dialog open={showInfo} onClose={() => setShowInfo(false)} className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black bg-opacity-30" aria-hidden="true" />
-          <div className="bg-white rounded shadow-lg p-6 max-w-md relative z-10">
-            <button type="button" className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowInfo(false)}>&times;</button>
-            <Dialog.Title className="text-xl font-bold mb-2">How to use the Mind Map Editor</Dialog.Title>
-            <ul className="list-disc pl-5 space-y-1 text-gray-700 mb-2">
-              <li>Enter or paste your notes or ideas in the text area below.</li>
-              <li>Click <b>Generate Mind Map</b> to visualize your thoughts.</li>
-              <li>Click the <EllipsisVerticalIcon className="inline w-4 h-4 align-text-bottom" /> icon on a node for actions: <b>Expand</b>, <b>Rename</b>, <b>Delete</b>.</li>
-              <li>Use the <b>Reset</b> button to clear the current map.</li>
-              <li>Use <b>Save Map</b> to store your map for later, or load previous maps from the dashboard.</li>
-              <li>Use <b>Add Node</b> to manually add a new node.</li>
-            </ul>
-            <div className="text-sm text-gray-500">Tip: Try the sample prompts for inspiration!</div>
-          </div>
-        </Dialog>
+              )}
+              {suggestedNodes && (
+                <div className="absolute top-8 right-8 z-50 bg-white border border-blue-200 rounded shadow-lg p-4 flex flex-col gap-2 min-w-[260px]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <SparklesIcon className="w-5 h-5 text-blue-500" />
+                    <span className="italic text-blue-700">AI-suggested children</span>
+                  </div>
+                  <ul className="mb-2">
+                    {suggestedNodes.nodes.map(n => (
+                      <li key={n.id} className="flex items-center gap-2 italic text-gray-700">
+                        <SparklesIcon className="w-4 h-4 text-blue-400" />
+                        <span>{n.label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex gap-2">
+                    <button className="flex-1 flex items-center justify-center gap-1 px-3 py-1 bg-blue-600 text-white rounded shadow hover:bg-blue-700" onClick={handleAcceptSuggestions}>
+                      <CheckIcon className="w-4 h-4" /> Accept
+                    </button>
+                    <button className="flex-1 flex items-center justify-center gap-1 px-3 py-1 bg-gray-200 text-gray-700 rounded shadow hover:bg-gray-300" onClick={handleRemoveSuggestions}>
+                      <XMarkIcon className="w-4 h-4" /> Remove
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {/* NodeMenu, Save, Add Node, and Info modals rendered at the end for accessibility */}
+          {menuNode && menuPos && (
+            <div
+              id="node-menu-popup"
+              style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, zIndex: 50 }}
+            >
+              <NodeMenu
+                node={nodes.find(n => n.id === menuNode)!}
+                onExpand={() => handleExpand(menuNode)}
+                onRename={label => handleRename(menuNode, label)}
+                onDelete={() => handleDelete(menuNode)}
+                onAddEdge={() => {
+                  setAddEdgeSource(menuNode);
+                  setMenuNode(null);
+                }}
+                onSuggestChildren={() => handleSuggestChildren(menuNode)}
+                loading={expandLoading || suggestLoading}
+                error={expandError || suggestError}
+              />
+            </div>
+          )}
+          <Dialog open={showSave} onClose={() => setShowSave(false)} className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-black bg-opacity-30" aria-hidden="true" />
+            <div className="bg-white rounded shadow-lg p-6 max-w-sm relative z-10">
+              <button type="button" className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowSave(false)}>&times;</button>
+              <Dialog.Title className="text-lg font-bold mb-2">Save Mind Map</Dialog.Title>
+              <input
+                className="border rounded px-3 py-2 w-full mb-3"
+                placeholder="Map name"
+                value={saveName}
+                onChange={e => setSaveName(e.target.value)}
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveMap(); }}
+              />
+              <button
+                type="button"
+                className="px-4 py-2 bg-green-600 text-white rounded w-full"
+                onClick={handleSaveMap}
+                disabled={!saveName.trim()}
+              >Save</button>
+            </div>
+          </Dialog>
+          <Dialog open={showAddNode} onClose={() => setShowAddNode(false)} className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-black bg-opacity-30" aria-hidden="true" />
+            <div
+              className="bg-white rounded shadow-lg p-6 max-w-sm relative z-10"
+              style={addNodePos ? { position: 'fixed', left: addNodePos.x, top: addNodePos.y, maxWidth: 320 } : {}}
+            >
+              <button type="button" className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowAddNode(false)}>&times;</button>
+              <Dialog.Title className="text-lg font-bold mb-2">Add Node</Dialog.Title>
+              <input
+                className="border rounded px-3 py-2 w-full mb-3"
+                placeholder="Node label"
+                value={newNodeLabel}
+                onChange={e => setNewNodeLabel(e.target.value)}
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') handleAddNode(); }}
+              />
+              <button
+                type="button"
+                className="px-4 py-2 bg-blue-600 text-white rounded w-full"
+                onClick={handleAddNode}
+                disabled={!newNodeLabel.trim()}
+              >Add Node</button>
+            </div>
+          </Dialog>
+          <Dialog open={showInfo} onClose={() => setShowInfo(false)} className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="fixed inset-0 bg-black bg-opacity-30" aria-hidden="true" />
+            <div className="bg-white rounded shadow-lg p-6 max-w-md relative z-10">
+              <button type="button" className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowInfo(false)}>&times;</button>
+              <Dialog.Title className="text-xl font-bold mb-2">How to use the Mind Map Editor</Dialog.Title>
+              <ul className="list-disc pl-5 space-y-2 text-gray-700 mb-2">
+                <li><b>Enter or paste your thoughts</b> in the large text area on the left. This can be a stream of consciousness, notes, or any ideas you want to map out.</li>
+                <li><b>Generate Mind Map</b>: Click this button to turn your text into a visual mind map. The AI will analyze your input and create nodes and connections based on your ideas.</li>
+                <li><b>Sample Prompts</b>: Use these for inspiration or to quickly see how the mind map works. Clicking a sample will fill the text area for you.</li>
+                <li><b>Reformat</b>: If your map looks cluttered or you want to spread out the nodes, click this to automatically rearrange everything for maximum clarity and minimal edge overlap.</li>
+                <li><b>Reset</b>: Clears the current mind map and text area so you can start fresh.</li>
+                <li><b>Save Map</b> (<BookmarkIcon className="inline w-4 h-4 align-text-bottom" />): Save your current mind map for later. You can load saved maps from the dashboard.</li>
+                <li><b>Insight</b> (<SparklesIcon className="inline w-4 h-4 align-text-bottom" />): Get an AI-generated analysis of your mind map, including high-level insights, potential blind spots, and key patterns.</li>
+                <li><b>Nodes</b>: Each box in the map is a node representing an idea or topic. <b>Right-click</b> a node to:
+                  <ul className="list-disc pl-5 mt-1 space-y-1">
+                    <li><b>Expand</b>: Use AI to generate more detailed sub-ideas for this node.</li>
+                    <li><b>Rename</b>: Edit the label of the node.</li>
+                    <li><b>Delete</b>: Remove the node and its connections.</li>
+                    <li><b>Add Edge</b>: Manually connect this node to another by clicking it, then clicking the target node.</li>
+                    <li><b>Suggest Children</b>: Get AI suggestions for possible subtopics or related ideas.</li>
+                  </ul>
+                </li>
+                <li><b>Add Node</b>: Right-click the background or use the Add Node button to manually add a new idea to your map.</li>
+                <li><b>Edges</b>: Lines between nodes show relationships. Right-click an edge to delete it. You can also select and press <kbd>Delete</kbd> or <kbd>Backspace</kbd>.</li>
+                <li><b>Save New Connections</b>: If you manually add edges, click this button to confirm and save them to your map.</li>
+                <li><b>Zoom & Pan</b>: Use your mouse or trackpad to zoom in/out and drag the map to explore large mind maps.</li>
+                <li><b>Dashboard</b>: Access all your saved mind maps, rename, delete, or open them for further editing.</li>
+              </ul>
+              <div className="text-sm text-gray-500 mt-2">Tip: Try the sample prompts or use the AI features to get the most out of your mind mapping experience!</div>
+            </div>
+          </Dialog>
+        </div>
       </div>
     </div>
   );

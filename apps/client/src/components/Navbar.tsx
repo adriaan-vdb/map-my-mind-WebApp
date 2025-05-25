@@ -21,7 +21,7 @@ const Navbar: React.FC = () => {
           {/* Logo */}
           <div className="flex-shrink-0 flex items-center">
             <span className="text-2xl font-bold text-blue-600">🧠</span>
-            <span className="ml-2 font-semibold text-lg">Map My Mind</span>
+            <span className="ml-2 font-semibold text-lg">Synaptia</span>
           </div>
           {/* Desktop nav */}
           <div className="hidden md:flex space-x-6">

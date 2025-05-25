@@ -1,28 +1,32 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMindMapStore, MindMap } from '../../hooks/useMindMapStore';
+import { useMindMapStore } from '../../hooks/useMindMapStore';
 import { PlusIcon, PencilIcon, TrashIcon, ArrowRightCircleIcon } from '@heroicons/react/24/outline';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const {
-    listMaps, loadMap, deleteMap, renameMap, setSelectedMapId, reset
+    listSavedMaps, loadMap, deleteMap, renameMap, setSelectedMapId, reset, version, cleanupInvalidMaps
   } = useMindMapStore();
-  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renamingName, setRenamingName] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const maps = listMaps();
+  const [maps, setMaps] = useState(listSavedMaps());
 
-  const handleLoad = (id: string) => {
-    loadMap(id);
-    setSelectedMapId(id);
+  React.useEffect(() => {
+    setMaps(listSavedMaps());
+  }, [version]);
+
+  const handleLoad = (name: string) => {
+    loadMap(name);
+    setSelectedMapId(name);
     navigate('/editor');
   };
-  const handleDelete = (id: string) => {
-    if (window.confirm('Delete this map?')) deleteMap(id);
+  const handleDelete = (name: string) => {
+    if (window.confirm('Delete this map?')) deleteMap(name);
   };
-  const handleRename = (id: string, name: string) => {
-    renameMap(id, name);
-    setRenamingId(null);
+  const handleRename = (oldName: string, newName: string) => {
+    renameMap(oldName, newName);
+    setRenamingName(null);
   };
   const handleNewMap = () => {
     reset();
@@ -55,26 +59,26 @@ export default function Dashboard() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {maps.map((map) => (
-            <div key={map.id} className="bg-white rounded-xl shadow-md p-6 flex flex-col justify-between h-full group border border-gray-100 hover:border-blue-400 transition">
+            <div key={map.name} className="bg-white rounded-xl shadow-md p-6 flex flex-col justify-between h-full group border border-gray-100 hover:border-blue-400 transition">
               <div className="flex-1">
-                {renamingId === map.id ? (
+                {renamingName === map.name ? (
                   <div className="flex gap-2 items-center mb-2">
                     <input
                       className="border rounded px-2 py-1 flex-1"
                       value={renameValue}
                       onChange={e => setRenameValue(e.target.value)}
                       autoFocus
-                      onKeyDown={e => { if (e.key === 'Enter') handleRename(map.id, renameValue); }}
+                      onKeyDown={e => { if (e.key === 'Enter') handleRename(map.name, renameValue); }}
                     />
-                    <button className="text-blue-600 font-semibold" onClick={() => handleRename(map.id, renameValue)}>Save</button>
-                    <button className="text-gray-400 font-semibold" onClick={() => setRenamingId(null)}>Cancel</button>
+                    <button className="text-blue-600 font-semibold" onClick={() => handleRename(map.name, renameValue)}>Save</button>
+                    <button className="text-gray-400 font-semibold" onClick={() => setRenamingName(null)}>Cancel</button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 mb-2">
                     <span className="font-bold text-lg truncate flex-1">{map.name}</span>
                     <button
                       className="p-1 rounded hover:bg-blue-50"
-                      onClick={() => { setRenamingId(map.id); setRenameValue(map.name); }}
+                      onClick={() => { setRenamingName(map.name); setRenameValue(map.name); }}
                       title="Rename"
                     >
                       <PencilIcon className="w-5 h-5 text-blue-500" />
@@ -82,21 +86,20 @@ export default function Dashboard() {
                   </div>
                 )}
                 <div className="text-xs text-gray-400 mb-2">
-                  Created: {new Date(map.created).toLocaleString()}<br />
-                  Modified: {new Date(map.modified).toLocaleString()}
+                  Created: {new Date(map.createdAt).toLocaleString()}
                 </div>
               </div>
               <div className="flex gap-2 mt-4">
                 <button
                   className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg font-semibold shadow hover:bg-blue-700 transition"
-                  onClick={() => handleLoad(map.id)}
+                  onClick={() => handleLoad(map.name)}
                   title="Open in Editor"
                 >
                   <ArrowRightCircleIcon className="w-5 h-5" /> Open
                 </button>
                 <button
                   className="flex items-center justify-center p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600"
-                  onClick={() => handleDelete(map.id)}
+                  onClick={() => handleDelete(map.name)}
                   title="Delete"
                 >
                   <TrashIcon className="w-5 h-5" />

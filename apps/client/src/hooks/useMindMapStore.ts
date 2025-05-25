@@ -22,6 +22,13 @@ export interface MindMap {
   modified: number;
 }
 
+export interface SavedMap {
+  name: string;
+  createdAt: number;
+  nodes: MindMapNode[];
+  edges: MindMapEdge[];
+}
+
 interface MindMapState {
   nodes: MindMapNode[];
   edges: MindMapEdge[];
@@ -38,32 +45,43 @@ interface MindMapState {
   deleteNode: (id: string) => void;
   selectedMapId: string | null;
   saveMap: (name: string) => void;
-  loadMap: (id: string) => void;
-  deleteMap: (id: string) => void;
-  listMaps: () => MindMap[];
-  renameMap: (id: string, name: string) => void;
+  loadMap: (name: string) => void;
+  deleteMap: (name: string) => void;
+  listMaps: () => SavedMap[];
+  listSavedMaps: () => { name: string, createdAt: number }[];
+  renameMap: (oldName: string, newName: string) => void;
   setSelectedMapId: (id: string | null) => void;
 }
 
-function getAllMaps(): MindMap[] {
-  const maps: MindMap[] = [];
+function getAllMaps(): SavedMap[] {
+  const maps: SavedMap[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (key && key.startsWith('mindmaps:')) {
       try {
         const map = JSON.parse(localStorage.getItem(key)!);
-        maps.push(map);
+        if (
+          map &&
+          map.name &&
+          map.nodes &&
+          map.edges &&
+          typeof map.createdAt === 'number' &&
+          !isNaN(map.createdAt)
+        ) {
+          maps.push(map);
+        }
       } catch {}
     }
   }
-  return maps.sort((a, b) => b.modified - a.modified);
+  return maps.sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export const useMindMapStore = create<MindMapState>((set, get) => ({
+export const useMindMapStore = create<MindMapState & { version: number; cleanupInvalidMaps: () => void }>((set, get) => ({
   nodes: [],
   edges: [],
   loading: false,
   error: null,
+  version: 0,
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
   setLoading: (loading) => set({ loading }),
@@ -78,37 +96,56 @@ export const useMindMapStore = create<MindMapState>((set, get) => ({
   })),
   selectedMapId: null,
   saveMap: (name) => {
-    const id = get().selectedMapId || crypto.randomUUID();
     const now = Date.now();
-    const map: MindMap = {
-      id,
+    const map: SavedMap = {
       name,
+      createdAt: now,
       nodes: get().nodes,
       edges: get().edges,
-      created: get().selectedMapId ? getAllMaps().find(m => m.id === id)?.created || now : now,
-      modified: now,
     };
-    localStorage.setItem(`mindmaps:${id}`, JSON.stringify(map));
-    set({ selectedMapId: id });
+    localStorage.setItem(`mindmaps:${name}`, JSON.stringify(map));
+    set({ selectedMapId: name, version: get().version + 1 });
   },
-  loadMap: (id) => {
-    const raw = localStorage.getItem(`mindmaps:${id}`);
+  loadMap: (name) => {
+    const raw = localStorage.getItem(`mindmaps:${name}`);
     if (!raw) return;
-    const map: MindMap = JSON.parse(raw);
-    set({ nodes: map.nodes, edges: map.edges, selectedMapId: id });
+    const map: SavedMap = JSON.parse(raw);
+    set({ nodes: map.nodes, edges: map.edges, selectedMapId: name });
   },
-  deleteMap: (id) => {
-    localStorage.removeItem(`mindmaps:${id}`);
-    if (get().selectedMapId === id) set({ selectedMapId: null, nodes: [], edges: [] });
+  deleteMap: (name) => {
+    localStorage.removeItem(`mindmaps:${name}`);
+    if (get().selectedMapId === name) set({ selectedMapId: null, nodes: [], edges: [], version: get().version + 1 });
+    else set({ version: get().version + 1 });
   },
   listMaps: () => getAllMaps(),
-  renameMap: (id, name) => {
-    const raw = localStorage.getItem(`mindmaps:${id}`);
+  listSavedMaps: () => getAllMaps().map(m => ({ name: m.name, createdAt: m.createdAt })),
+  renameMap: (oldName, newName) => {
+    const raw = localStorage.getItem(`mindmaps:${oldName}`);
     if (!raw) return;
-    const map: MindMap = JSON.parse(raw);
-    map.name = name;
-    map.modified = Date.now();
-    localStorage.setItem(`mindmaps:${id}`, JSON.stringify(map));
+    const map: SavedMap = JSON.parse(raw);
+    map.name = newName;
+    localStorage.setItem(`mindmaps:${newName}`, JSON.stringify(map));
+    localStorage.removeItem(`mindmaps:${oldName}`);
+    if (get().selectedMapId === oldName) set({ selectedMapId: newName, version: get().version + 1 });
+    else set({ version: get().version + 1 });
   },
   setSelectedMapId: (id) => set({ selectedMapId: id }),
+  cleanupInvalidMaps: () => {
+    const keysToDelete: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('mindmaps:')) {
+        try {
+          const map = JSON.parse(localStorage.getItem(key)!);
+          if (!map || typeof map.createdAt !== 'number' || isNaN(map.createdAt)) {
+            keysToDelete.push(key);
+          }
+        } catch {
+          keysToDelete.push(key!);
+        }
+      }
+    }
+    keysToDelete.forEach(key => localStorage.removeItem(key));
+    set({ version: get().version + 1 });
+  },
 })); 
