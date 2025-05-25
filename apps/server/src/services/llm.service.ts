@@ -1,12 +1,12 @@
-import { buildPrompt, buildSuggestChildrenPrompt, buildInsightPrompt } from '../utils/prompt';
+import { buildPrompt, buildSuggestChildrenPrompt, buildInsightPrompt, buildSemanticClusteringPrompt } from '../utils/prompt';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function getMindMapFromText(text: string) {
-  const prompt = buildPrompt(text);
+export async function getMindMapFromText(text: string, detailLevel: number = 3) {
+  const prompt = buildPrompt(text, detailLevel);
   const response = await openai.chat.completions.create({
     model: 'gpt-4o',
     messages: [
@@ -23,8 +23,8 @@ export async function getMindMapFromText(text: string) {
   return JSON.parse(json);
 }
 
-export async function suggestChildren(label: string) {
-  const prompt = buildSuggestChildrenPrompt(label);
+export async function suggestChildren(label: string, detailLevel: number = 3) {
+  const prompt = buildSuggestChildrenPrompt(label, detailLevel);
   const response = await openai.chat.completions.create({
     model: 'gpt-4o',
     messages: [
@@ -41,12 +41,30 @@ export async function suggestChildren(label: string) {
   return JSON.parse(json);
 }
 
-export async function getMapInsight(nodes: any[], edges: any[], summaries?: any[]) {
-  const prompt = buildInsightPrompt(nodes, edges, summaries);
+export async function getMapInsight(nodes: any[], edges: any[], summaries?: any[], detailLevel: number = 3) {
+  const prompt = buildInsightPrompt(nodes, edges, summaries, detailLevel);
   const response = await openai.chat.completions.create({
     model: 'gpt-4o',
     messages: [
       { role: 'system', content: 'You are an expert mind map analyst.' },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.3,
+    max_tokens: 512,
+  });
+  const content = response.choices[0].message?.content || '';
+  // Try to extract JSON from code block if present
+  const match = content.match(/```(?:json)?\n?([\s\S]*?)```/);
+  const json = match ? match[1] : content;
+  return JSON.parse(json);
+}
+
+export async function getSemanticClusters(nodes: any[], edges: any[], detailLevel: number = 3) {
+  const prompt = buildSemanticClusteringPrompt(nodes, edges, detailLevel);
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      { role: 'system', content: 'You are an expert in concept mapping and clustering.' },
       { role: 'user', content: prompt }
     ],
     temperature: 0.3,

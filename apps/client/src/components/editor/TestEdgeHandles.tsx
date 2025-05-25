@@ -39,7 +39,7 @@ export default function TestEdgeHandles() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
       <h2 className="text-2xl font-bold mb-4">Minimal EdgeHandles Test</h2>
       <CytoscapeComponent
-        cy={cy => (cyRef.current = cy)}
+        cy={(cy: Cytoscape.Core) => (cyRef.current = cy)}
         elements={elements}
         style={{ width: '600px', height: '400px', background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
         layout={{ name: 'grid' }}

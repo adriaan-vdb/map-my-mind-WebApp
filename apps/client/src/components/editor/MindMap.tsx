@@ -56,8 +56,6 @@ export default function MindMap() {
   const [graphHeight, setGraphHeight] = useState(400);
   const [menuNode, setMenuNode] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
-  const [expandLoading, setExpandLoading] = useState(false);
-  const [expandError, setExpandError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showSave, setShowSave] = useState(false);
   const [saveName, setSaveName] = useState('');
@@ -65,7 +63,6 @@ export default function MindMap() {
   const [newNodeLabel, setNewNodeLabel] = useState('');
   const cyRef = useRef<any>(null);
   const [nodeIconPositions, setNodeIconPositions] = useState<{ [id: string]: { x: number; y: number } }>({});
-  const [newEdges, setNewEdges] = useState<{ id: string; source: string; target: string }[]>([]);
   const [edgeMenu, setEdgeMenu] = useState<{
     id: string;
     source: string;
@@ -82,6 +79,11 @@ export default function MindMap() {
   const [insightOpen, setInsightOpen] = useState(false);
   const [insightLoading, setInsightLoading] = useState(false);
   const [insightError, setInsightError] = useState<string | null>(null);
+  const [clusterLoading, setClusterLoading] = useState(false);
+  const [clusters, setClusters] = useState<any>(null);
+  const [clusterError, setClusterError] = useState<string | null>(null);
+  const [clusterOpen, setClusterOpen] = useState(false);
+  const [detailLevel, setDetailLevel] = useState(5); // Default to Highly Detailed
 
   // Typing animation for heading
   const TYPING_TEXT = "enter streams of consciousness...";
@@ -210,7 +212,7 @@ export default function MindMap() {
       const res = await fetch(`${API_URL}/api/maps`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: input }),
+        body: JSON.stringify({ text: input, detailLevel }),
       });
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
@@ -237,28 +239,6 @@ export default function MindMap() {
   };
 
   // Node actions
-  const handleExpand = async (nodeId: string) => {
-    setExpandLoading(true);
-    setExpandError(null);
-    const node = nodes.find(n => n.id === nodeId);
-    if (!node) return;
-    try {
-      const res = await fetch(`${API_URL}/api/maps`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: node.label, parentId: node.id }),
-      });
-      if (!res.ok) throw new Error('API error');
-      const data = await res.json();
-      addNodes(data.nodes.filter((n: any) => !nodes.some(existing => existing.id === n.id)));
-      addEdges(data.edges.filter((e: any) => !edges.some(existing => existing.source === e.source && existing.target === e.target)));
-      setMenuNode(null);
-    } catch (err: any) {
-      setExpandError(err.message || 'Unknown error');
-    } finally {
-      setExpandLoading(false);
-    }
-  };
   const handleRename = (nodeId: string, label: string) => {
     renameNode(nodeId, label);
     setMenuNode(null);
@@ -304,14 +284,13 @@ export default function MindMap() {
         const source = sourceNode.id();
         const target = targetNode.id();
         if (
-          edges.some(e => e.source === source && e.target === target) ||
-          newEdges.some(e => e.source === source && e.target === target)
+          edges.some(e => e.source === source && e.target === target)
         ) {
           addedEles.remove();
           return;
         }
         const id = `${source}__${target}__${crypto.randomUUID()}`;
-        setNewEdges(prev => [...prev, { id, source, target }]);
+        setEdges([...edges, { id, source, target }]);
       }
     });
     (cy as any).ehInstance = eh;
@@ -334,7 +313,6 @@ export default function MindMap() {
         if (sel.length > 0) {
           const toRemove = sel.map((ele: any) => ({ source: ele.data('source'), target: ele.data('target') }));
           setEdges(edges.filter(e => !toRemove.some((rm: any) => rm.source === e.source && rm.target === e.target)));
-          setNewEdges(newEdges.filter(e => !toRemove.some((rm: any) => rm.source === e.source && rm.target === e.target)));
         }
       }
     };
@@ -364,7 +342,7 @@ export default function MindMap() {
       cy.removeListener('tap', hideMenu);
       document.removeEventListener('scroll', hideMenu, true);
     };
-  }, [edges, newEdges]);
+  }, [edges]);
 
   // Delete edge from context menu
   const handleDeleteEdgeMenu = () => {
@@ -377,22 +355,7 @@ export default function MindMap() {
         return !(e.source === edgeMenu.source && e.target === edgeMenu.target);
       }
     }));
-    setNewEdges(newEdges.filter(e => {
-      if (e.id) {
-        return e.id !== edgeMenu.id;
-      } else {
-        return !(e.source === edgeMenu.source && e.target === edgeMenu.target);
-      }
-    }));
     setEdgeMenu(null);
-  };
-
-  // Add new edges to store when user saves (or on explicit action)
-  const handleSaveNewEdges = () => {
-    if (newEdges.length > 0) {
-      setEdges([...edges, ...newEdges]);
-      setNewEdges([]);
-    }
   };
 
   // Handler for AI children suggestion
@@ -406,7 +369,7 @@ export default function MindMap() {
       const res = await fetch(`${API_URL}/api/maps/suggest-children`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: node.label, parentId: node.id }),
+        body: JSON.stringify({ text: node.label, parentId: node.id, detailLevel }),
       });
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
@@ -442,7 +405,6 @@ export default function MindMap() {
   const elements = [
     ...nodes.map((n) => ({ data: { id: n.id, label: n.label } })),
     ...edges.map((e) => ({ data: { id: e.id || `${e.source}__${e.target}`, source: e.source, target: e.target }, classes: e.source === e.target ? 'circular' : '' })),
-    ...newEdges.map((e) => ({ data: { id: e.id, source: e.source, target: e.target, newEdge: true }, classes: e.source === e.target ? 'circular' : '' })),
   ];
 
   // Add after menuNode and menuPos state declarations
@@ -508,14 +470,13 @@ export default function MindMap() {
         }
         // Prevent duplicates
         if (
-          edges.some(e => e.source === addEdgeSource && e.target === targetId) ||
-          newEdges.some(e => e.source === addEdgeSource && e.target === targetId)
+          edges.some(e => e.source === addEdgeSource && e.target === targetId)
         ) {
           setAddEdgeSource(null);
           return;
         }
         const id = `${addEdgeSource}__${targetId}__${crypto.randomUUID()}`;
-        setNewEdges(prev => [...prev, { id, source: addEdgeSource, target: targetId }]);
+        setEdges([...edges, { id, source: addEdgeSource, target: targetId }]);
         setAddEdgeSource(null);
       } else {
         // Clicked elsewhere, exit mode
@@ -524,7 +485,7 @@ export default function MindMap() {
     };
     cy.on('tap', handler);
     return () => cy.removeListener('tap', handler);
-  }, [addEdgeSource, edges, newEdges]);
+  }, [addEdgeSource, edges]);
 
   // Show overlay message when in addEdgeSource mode
   {addEdgeSource && (
@@ -548,7 +509,7 @@ export default function MindMap() {
       const res = await fetch(`${API_URL}/api/maps/insight`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodes, edges }),
+        body: JSON.stringify({ nodes, edges, detailLevel }),
       });
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
@@ -598,6 +559,27 @@ export default function MindMap() {
     }
   }, [selectedMapId]);
 
+  const handleSemanticClustering = async () => {
+    setClusterLoading(true);
+    setClusterError(null);
+    setClusters(null);
+    try {
+      const res = await fetch(`${API_URL}/api/maps/semantic-clusters`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodes, edges, detailLevel })
+      });
+      if (!res.ok) throw new Error('Failed to get clusters');
+      const data = await res.json();
+      setClusters(data.clusters);
+      setClusterOpen(true);
+    } catch (err: any) {
+      setClusterError(err.message || 'Unknown error');
+    } finally {
+      setClusterLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-pink-50 to-yellow-50 font-sans flex flex-col md:flex-row">
       {/* Left: Sidebar */}
@@ -610,10 +592,24 @@ export default function MindMap() {
             <span className="whitespace-nowrap">{typedText}<span className="border-r-2 border-pink-400 animate-pulse ml-0.5" style={{display:'inline-block',width:2,height:'1.2em',verticalAlign:'middle'}}></span></span>
           </span>
         </div>
+        <div className="mb-2">
+          <label htmlFor="detail-slider" className="block text-sm font-medium text-gray-700 mb-1">
+            Detail Level: <b>{detailLevel}</b> ({['Very Brief','Brief','Moderate','Detailed','Highly Detailed'][detailLevel-1]})
+          </label>
+          <input
+            id="detail-slider"
+            type="range"
+            min={1}
+            max={5}
+            value={detailLevel}
+            onChange={e => setDetailLevel(Number(e.target.value))}
+            className="w-full"
+          />
+        </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <textarea
             className="w-full min-h-[400px] p-4 border-2 border-blue-100 rounded-2xl bg-blue-50 focus:border-pink-300 focus:ring-2 focus:ring-pink-100 text-lg transition"
-            placeholder="e.g. Productivity, time management, healthy habits..."
+            placeholder="Try 'Planning a creative project', 'Understanding climate anxiety', or 'Exploring childhood memories'"
             value={input}
             onChange={e => setInput(e.target.value)}
             disabled={loading}
@@ -669,16 +665,27 @@ export default function MindMap() {
         </form>
         {/* Sample prompts below textarea */}
         {error && <div className="text-red-600 bg-white rounded shadow p-2 mt-2">{error}</div>}
-        {/* Generate Insight button below suggestions */}
-        <button
-          className="mt-2 px-5 py-2 bg-purple-500 text-white rounded-full font-semibold shadow hover:bg-purple-600 w-fit transition flex items-center gap-2"
-          onClick={handleGenerateInsight}
-          disabled={insightLoading || nodes.length === 0}
-          title="Analyze your mind map with AI"
-        >
-          <SparklesIcon className="w-5 h-5" />
-          {insight ? 'Show Insight' : 'Generate Insight'}
-        </button>
+        {/* Generate Insight and Semantic Clustering buttons */}
+        <div className="flex gap-2 mt-2">
+          <button
+            className="px-5 py-2 bg-purple-500 text-white rounded-full font-semibold shadow hover:bg-purple-600 w-fit transition flex items-center gap-2"
+            onClick={handleGenerateInsight}
+            disabled={insightLoading || nodes.length === 0}
+            title="Analyze your mind map with AI"
+          >
+            <SparklesIcon className="w-5 h-5" />
+            {insight ? 'Show Insight' : 'Generate Insight'}
+          </button>
+          <button
+            className="px-5 py-2 bg-blue-500 text-white rounded-full font-semibold shadow hover:bg-blue-600 w-fit transition flex items-center gap-2"
+            onClick={handleSemanticClustering}
+            disabled={clusterLoading || nodes.length === 0}
+            title="Group nodes into semantic clusters with AI"
+          >
+            <SparklesIcon className="w-5 h-5" />
+            {clusterLoading ? 'Clustering...' : 'Semantic Clustering'}
+          </button>
+        </div>
         {/* Insight panel below the button */}
         {insightOpen && (
           <div className="mt-2 bg-white border-2 border-purple-200 rounded-2xl shadow-lg p-4 space-y-4">
@@ -707,10 +714,43 @@ export default function MindMap() {
             )}
           </div>
         )}
+        {/* Semantic Clustering dialog */}
+        {clusterOpen && (
+          <div className="mt-2 bg-white border-2 border-blue-200 rounded-2xl shadow-lg p-4 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <SparklesIcon className="w-6 h-6 text-blue-500" />
+              <span className="text-lg font-bold">Semantic Clusters</span>
+              <button type="button" className="ml-auto text-gray-400 hover:text-gray-600" onClick={() => setClusterOpen(false)}>&times;</button>
+            </div>
+            {clusterLoading && <div className="text-gray-600">Clustering your mind map...</div>}
+            {clusterError && <div className="text-red-600">{clusterError}</div>}
+            {clusters && !clusterLoading && !clusterError && (
+              <div className="space-y-4">
+                {clusters.length === 0 && <div>No clusters found.</div>}
+                {clusters.map((cluster: any, idx: number) => (
+                  <div key={idx} className="mb-4 p-3 rounded border border-blue-100 bg-blue-50/50">
+                    <div className="font-semibold text-blue-700 mb-1">
+                      {cluster.name} <span className="text-xs text-gray-500">({cluster.nodeIds.length} item{cluster.nodeIds.length !== 1 ? 's' : ''})</span>
+                    </div>
+                    <ul className="list-disc pl-5 text-gray-800 text-sm">
+                      {cluster.nodeIds.map((id: string) => {
+                        const node = nodes.find(n => n.id === id);
+                        return <li key={id}>{node ? node.label : <span className="italic text-gray-400">Unknown node</span>}</li>;
+                      })}
+                    </ul>
+                    {cluster.name === 'Other' && (
+                      <div className="text-xs text-gray-500 mt-1">These nodes didn't fit into any main group.</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {/* Right: Main Map Area */}
-      <div className="flex-1 flex flex-col min-h-screen bg-white">
-        <div className="flex-1 w-full h-full flex items-center justify-center relative min-h-screen">
+      <div className="flex-1 flex flex-col bg-white min-h-0">
+        <div className="flex-1 w-full h-full flex items-center justify-center relative min-h-0">
           {nodes.length === 0 && !loading && !error ? (
             <div className="flex flex-col items-center justify-center h-full text-black-200 select-none">
               <div className="mb-4 text-7xl">➕</div>
@@ -718,7 +758,7 @@ export default function MindMap() {
               <div className="text-base text-black-300 mt-2">Start by entering your notes and clicking <span className='font-semibold text-blue-600'>Generate Mind Map</span>!</div>
             </div>
           ) : (
-            <div ref={containerRef} className="relative w-full h-full flex-1 min-h-screen">
+            <div ref={containerRef} className="relative w-full h-full flex-1 min-h-0">
               <CytoscapeComponent
                 cy={(cy: Cytoscape.Core) => {
                   cyRef.current = cy;
@@ -798,15 +838,6 @@ export default function MindMap() {
                 maxZoom={2}
                 wheelSensitivity={1}
               />
-              {/* Save new edges button */}
-              {newEdges.length > 0 && (
-                <button
-                  className="absolute top-2 right-2 px-4 py-2 bg-orange-500 text-white rounded shadow z-50"
-                  onClick={handleSaveNewEdges}
-                >
-                  Save New Connections
-                </button>
-              )}
               {/* Edge context menu */}
               {edgeMenu && (
                 <div
@@ -866,7 +897,6 @@ export default function MindMap() {
             >
               <NodeMenu
                 node={nodes.find(n => n.id === menuNode)!}
-                onExpand={() => handleExpand(menuNode)}
                 onRename={label => handleRename(menuNode, label)}
                 onDelete={() => handleDelete(menuNode)}
                 onAddEdge={() => {
@@ -874,8 +904,8 @@ export default function MindMap() {
                   setMenuNode(null);
                 }}
                 onSuggestChildren={() => handleSuggestChildren(menuNode)}
-                loading={expandLoading || suggestLoading}
-                error={expandError || suggestError}
+                loading={suggestLoading}
+                error={suggestError}
               />
             </div>
           )}
@@ -939,7 +969,6 @@ export default function MindMap() {
                 <li><b>Insight</b> (<SparklesIcon className="inline w-4 h-4 align-text-bottom" />): Get an AI-generated analysis of your mind map, including high-level insights, potential blind spots, and key patterns.</li>
                 <li><b>Nodes</b>: Each box in the map is a node representing an idea or topic. <b>Right-click</b> a node to:
                   <ul className="list-disc pl-5 mt-1 space-y-1">
-                    <li><b>Expand</b>: Use AI to generate more detailed sub-ideas for this node.</li>
                     <li><b>Rename</b>: Edit the label of the node.</li>
                     <li><b>Delete</b>: Remove the node and its connections.</li>
                     <li><b>Add Edge</b>: Manually connect this node to another by clicking it, then clicking the target node.</li>
@@ -948,9 +977,6 @@ export default function MindMap() {
                 </li>
                 <li><b>Add Node</b>: Right-click the background or use the Add Node button to manually add a new idea to your map.</li>
                 <li><b>Edges</b>: Lines between nodes show relationships. Right-click an edge to delete it. You can also select and press <kbd>Delete</kbd> or <kbd>Backspace</kbd>.</li>
-                <li><b>Save New Connections</b>: If you manually add edges, click this button to confirm and save them to your map.</li>
-                <li><b>Zoom & Pan</b>: Use your mouse or trackpad to zoom in/out and drag the map to explore large mind maps.</li>
-                <li><b>Dashboard</b>: Access all your saved mind maps, rename, delete, or open them for further editing.</li>
               </ul>
               <div className="text-sm text-gray-500 mt-2">Tip: Try the sample prompts or use the AI features to get the most out of your mind mapping experience!</div>
             </div>
