@@ -2,7 +2,7 @@
 
 ## Overview
 
-Synaptia is a full‑stack web application that converts unstructured notes or stream‑of‑consciousness text into an interactive visual mind map. An OpenAI GPT model performs text segmentation, clustering, summarisation, and idea expansion. The front‑end (React + Cytoscape.js) renders the resulting node‑edge graph, giving users a rich UI to explore, edit, and save their maps. The project is designed to be:
+Synaptia is a full‑stack web application that converts unstructured notes or stream‑of‑consciousness text into an interactive visual mind map. It features a modern React 18 frontend (with Vite, Zustand for state, Cytoscape.js for graph visualization, and Tailwind CSS for styling) and a robust Node.js 20 + Express backend written in TypeScript. The backend integrates with OpenAI GPT-4o for advanced AI-powered text segmentation, clustering, summarization, and idea expansion.
 
 ---
 
