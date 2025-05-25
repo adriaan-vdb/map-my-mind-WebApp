@@ -7,11 +7,12 @@ interface NodeMenuProps {
   onRename: (label: string) => void;
   onDelete: () => void;
   onAddEdge: () => void;
+  onSuggestChildren?: () => void;
   loading: boolean;
   error: string | null;
 }
 
-export default function NodeMenu({ node, onExpand, onRename, onDelete, onAddEdge, loading, error }: NodeMenuProps) {
+export default function NodeMenu({ node, onExpand, onRename, onDelete, onAddEdge, onSuggestChildren, loading, error }: NodeMenuProps) {
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(node.label);
 
@@ -40,6 +41,9 @@ export default function NodeMenu({ node, onExpand, onRename, onDelete, onAddEdge
           <button className="text-left hover:bg-gray-100 px-2 py-1 rounded" onClick={onExpand} disabled={loading}>Expand</button>
           <button className="text-left hover:bg-gray-100 px-2 py-1 rounded" onClick={() => setEditing(true)} disabled={loading}>Rename</button>
           <button className="text-left hover:bg-gray-100 px-2 py-1 rounded" onClick={onAddEdge} disabled={loading}>Add Edge</button>
+          <button className="text-left hover:bg-gray-100 px-2 py-1 rounded" onClick={onSuggestChildren} disabled={loading}>
+            Suggest children
+          </button>
           <button className="text-left hover:bg-gray-100 px-2 py-1 rounded text-red-600" onClick={onDelete} disabled={loading}>Delete</button>
         </>
       )}

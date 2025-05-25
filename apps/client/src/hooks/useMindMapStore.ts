@@ -4,6 +4,7 @@ export interface MindMapNode {
   id: string;
   label: string;
   summary?: string;
+  aiSuggested?: boolean;
 }
 
 export interface MindMapEdge {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { getMindMapFromText } from './services/llm.service';
+import { getMindMapFromText, suggestChildren, getMapInsight } from './services/llm.service';
 
 const router = Router();
 
@@ -28,6 +28,33 @@ router.post('/', async (req, res) => {
       return res.status(500).json({ error: 'Invalid response from LLM', details: parsed.error });
     }
     res.json(parsed.data);
+  } catch (err) {
+    res.status(500).json({ error: 'LLM error', details: err instanceof Error ? err.message : err });
+  }
+});
+
+router.post('/suggest-children', async (req, res) => {
+  const { text, parentId } = req.body;
+  if (!text || typeof text !== 'string' || !parentId || typeof parentId !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid text/parentId' });
+  }
+  try {
+    const suggestions = await suggestChildren(text);
+    // suggestions: [{ label: string }]
+    res.json({ suggestions });
+  } catch (err) {
+    res.status(500).json({ error: 'LLM error', details: err instanceof Error ? err.message : err });
+  }
+});
+
+router.post('/insight', async (req, res) => {
+  const { nodes, edges, summaries } = req.body;
+  if (!Array.isArray(nodes) || !Array.isArray(edges)) {
+    return res.status(400).json({ error: 'Missing or invalid nodes/edges' });
+  }
+  try {
+    const insight = await getMapInsight(nodes, edges, summaries);
+    res.json({ insight });
   } catch (err) {
     res.status(500).json({ error: 'LLM error', details: err instanceof Error ? err.message : err });
   }

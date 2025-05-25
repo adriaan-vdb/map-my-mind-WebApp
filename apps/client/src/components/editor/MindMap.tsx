@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import { useMindMapStore } from '../../hooks/useMindMapStore';
 import NodeMenu from './NodeMenu';
-import { InformationCircleIcon, EllipsisVerticalIcon, PlusIcon, BookmarkIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, EllipsisVerticalIcon, PlusIcon, BookmarkIcon, SparklesIcon, XMarkIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { Dialog } from '@headlessui/react';
 import Cytoscape from 'cytoscape';
 import edgehandles from 'cytoscape-edgehandles';
@@ -69,6 +69,13 @@ export default function MindMap() {
   } | null>(null);
   const [addEdgeSource, setAddEdgeSource] = useState<string | null>(null);
   const [addNodePos, setAddNodePos] = useState<{ x: number; y: number } | null>(null);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
+  const [suggestedNodes, setSuggestedNodes] = useState<{ parentId: string, nodes: any[], edges: any[] } | null>(null);
+  const [insight, setInsight] = useState<any>(null);
+  const [insightOpen, setInsightOpen] = useState(false);
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightError, setInsightError] = useState<string | null>(null);
 
   // Responsive graph height
   useEffect(() => {
@@ -342,6 +349,50 @@ export default function MindMap() {
     }
   };
 
+  // Handler for AI children suggestion
+  const handleSuggestChildren = async (nodeId: string) => {
+    setSuggestLoading(true);
+    setSuggestError(null);
+    setSuggestedNodes(null);
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    try {
+      const res = await fetch(`${API_URL}/api/maps/suggest-children`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: node.label, parentId: node.id }),
+      });
+      if (!res.ok) throw new Error('API error');
+      const data = await res.json();
+      // data.suggestions: [{ label }]
+      // Generate new node IDs and edges
+      const newNodes = data.suggestions.map((s: any) => ({
+        id: `${nodeId}__ai__${crypto.randomUUID()}`,
+        label: s.label,
+        aiSuggested: true,
+      }));
+      const newEdges = newNodes.map((n: any) => ({ source: nodeId, target: n.id }));
+      setSuggestedNodes({ parentId: nodeId, nodes: newNodes, edges: newEdges });
+    } catch (err: any) {
+      setSuggestError(err.message || 'Unknown error');
+    } finally {
+      setSuggestLoading(false);
+    }
+  };
+
+  // Accept AI suggestions
+  const handleAcceptSuggestions = () => {
+    if (!suggestedNodes) return;
+    addNodes(suggestedNodes.nodes);
+    addEdges(suggestedNodes.edges);
+    setSuggestedNodes(null);
+  };
+
+  // Remove AI suggestions
+  const handleRemoveSuggestions = () => {
+    setSuggestedNodes(null);
+  };
+
   const elements = [
     ...nodes.map((n) => ({ data: { id: n.id, label: n.label } })),
     ...edges.map((e) => ({ data: { id: e.id || `${e.source}__${e.target}`, source: e.source, target: e.target }, classes: e.source === e.target ? 'circular' : '' })),
@@ -438,6 +489,31 @@ export default function MindMap() {
     </div>
   )}
 
+  // Handler for generating insight
+  const handleGenerateInsight = async () => {
+    if (insight) {
+      setInsightOpen(true);
+      return;
+    }
+    setInsightLoading(true);
+    setInsightError(null);
+    setInsightOpen(true);
+    try {
+      const res = await fetch(`${API_URL}/api/maps/insight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodes, edges }),
+      });
+      if (!res.ok) throw new Error('API error');
+      const data = await res.json();
+      setInsight(data.insight);
+    } catch (err: any) {
+      setInsightError(err.message || 'Unknown error');
+    } finally {
+      setInsightLoading(false);
+    }
+  };
+
   return (
     <div ref={containerRef} className="min-h-screen flex flex-col md:flex-row gap-8 bg-gray-50 p-4 md:p-8 relative">
       {/* Left: Form and controls */}
@@ -497,6 +573,44 @@ export default function MindMap() {
           ))}
         </div>
         {error && <div className="text-red-600 bg-white rounded shadow p-2 mt-2">{error}</div>}
+        {/* Generate Insight button below suggestions */}
+        <button
+          className="mt-2 px-4 py-2 bg-purple-600 text-white rounded flex items-center gap-2 shadow hover:bg-purple-700 w-fit"
+          onClick={handleGenerateInsight}
+          disabled={insightLoading || nodes.length === 0}
+          title="Analyze your mind map with AI"
+        >
+          <SparklesIcon className="w-5 h-5" />
+          {insight ? 'Show Insight' : 'Generate Insight'}
+        </button>
+        {/* Insight panel below the button */}
+        {insightOpen && (
+          <div className="mt-2 bg-white border border-purple-200 rounded shadow p-4 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <SparklesIcon className="w-6 h-6 text-purple-500" />
+              <span className="text-lg font-bold">Mind Map Insight</span>
+              <button type="button" className="ml-auto text-gray-400 hover:text-gray-600" onClick={() => setInsightOpen(false)}>&times;</button>
+            </div>
+            {insightLoading && <div className="text-gray-600">Analyzing your mind map...</div>}
+            {insightError && <div className="text-red-600">{insightError}</div>}
+            {insight && !insightLoading && !insightError && (
+              <div className="space-y-4">
+                <div>
+                  <div className="font-semibold text-gray-700 mb-1">High-level Insight</div>
+                  <div className="bg-gray-50 rounded p-2 text-gray-800">{insight.insight}</div>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-700 mb-1">Potential Blind Spot</div>
+                  <div className="bg-gray-50 rounded p-2 text-gray-800">{insight.blindSpot}</div>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-700 mb-1">Key Clusters / Patterns</div>
+                  <div className="bg-gray-50 rounded p-2 text-gray-800">{insight.clusters}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {/* Right: Graph or placeholder */}
       <div className="flex-1 flex flex-col items-center justify-center min-h-[400px] relative">
@@ -541,6 +655,16 @@ export default function MindMap() {
                     'text-wrap': 'wrap',
                     'text-max-width': 100,
                     'overlay-padding': 8,
+                    'font-style': 'data(aiSuggested)',
+                    'text-decoration': 'data(aiSuggested)',
+                  },
+                },
+                {
+                  selector: 'node[aiSuggested]',
+                  style: {
+                    'background-color': '#a5b4fc',
+                    'font-style': 'italic',
+                    'text-decoration': 'underline dotted',
                   },
                 },
                 {
@@ -611,6 +735,30 @@ export default function MindMap() {
                 </button>
               </div>
             )}
+            {suggestedNodes && (
+              <div className="absolute top-8 right-8 z-50 bg-white border border-blue-200 rounded shadow-lg p-4 flex flex-col gap-2 min-w-[260px]">
+                <div className="flex items-center gap-2 mb-2">
+                  <SparklesIcon className="w-5 h-5 text-blue-500" />
+                  <span className="italic text-blue-700">AI-suggested children</span>
+                </div>
+                <ul className="mb-2">
+                  {suggestedNodes.nodes.map(n => (
+                    <li key={n.id} className="flex items-center gap-2 italic text-gray-700">
+                      <SparklesIcon className="w-4 h-4 text-blue-400" />
+                      <span>{n.label}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex gap-2">
+                  <button className="flex-1 flex items-center justify-center gap-1 px-3 py-1 bg-blue-600 text-white rounded shadow hover:bg-blue-700" onClick={handleAcceptSuggestions}>
+                    <CheckIcon className="w-4 h-4" /> Accept
+                  </button>
+                  <button className="flex-1 flex items-center justify-center gap-1 px-3 py-1 bg-gray-200 text-gray-700 rounded shadow hover:bg-gray-300" onClick={handleRemoveSuggestions}>
+                    <XMarkIcon className="w-4 h-4" /> Remove
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {/* NodeMenu, Save, Add Node, and Info modals rendered at the end for accessibility */}
@@ -628,8 +776,9 @@ export default function MindMap() {
                 setAddEdgeSource(menuNode);
                 setMenuNode(null);
               }}
-              loading={expandLoading}
-              error={expandError}
+              onSuggestChildren={() => handleSuggestChildren(menuNode)}
+              loading={expandLoading || suggestLoading}
+              error={expandError || suggestError}
             />
           </div>
         )}
