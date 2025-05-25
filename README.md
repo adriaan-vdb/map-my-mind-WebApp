@@ -68,13 +68,13 @@ Map My Mind is a full‑stack web application that converts unstructured notes o
 
 ```mermaid
 flowchart LR
-    subgraph Client (Browser)
-        A[React App]\nTailwind
+    subgraph Client_Browser
+        A[React App + Tailwind]
     end
-    subgraph API Server (Express)
-        B[REST Controller]\n/ai/maps
-        C[LLM Service]\n(OpenAI)
-        D[DB Service]\n(Firestore/Mongo)
+    subgraph API_Server_Express
+        B[REST Controller - /ai/maps]
+        C[LLM Service - OpenAI]
+        D[DB Service - Firestore/Mongo]
     end
     A -- JSON --> B
     B -- prompts --> C
