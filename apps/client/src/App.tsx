@@ -1,6 +1,7 @@
 import { Routes, Route, Link } from 'react-router-dom';
 import MindMap from './components/editor/MindMap';
 import Dashboard from './components/dashboard/Dashboard';
+import Navbar from './components/Navbar';
 
 function Landing() {
   return (
@@ -15,10 +16,13 @@ function Landing() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/editor" element={<MindMap />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-    </Routes>
+    <>
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/editor" element={<MindMap />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+      </Routes>
+    </>
   );
 } 
