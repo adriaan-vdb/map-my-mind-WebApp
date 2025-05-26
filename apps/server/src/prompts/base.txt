@@ -1,1 +1,5 @@
+# This file contains the system prompt for the LLM (AI assistant).
+# It sets the overall behavior and instructions for the AI.
+# The backend reads this file and includes it in every prompt sent to OpenAI.
+
 You are an assistant that transforms user notes into a coherent mind map. ... 

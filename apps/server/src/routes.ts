@@ -1,9 +1,25 @@
+//
+// routes.ts
+//
+// This file defines the API endpoints for the mind map app.
+// - Uses Express Router to organize endpoints
+// - Uses Zod for input validation
+// - Calls LLM (AI) service functions to process requests
+//
+// Learnings for beginners:
+//   - How to define API endpoints in Express
+//   - How to validate input
+//   - How to handle async/await and errors
+//   - How to structure RESTful APIs
+//
+
 import { Router } from 'express';
 import { z } from 'zod';
 import { getMindMapFromText, suggestChildren, getMapInsight, getSemanticClusters } from './services/llm.service';
 
 const router = Router();
 
+// --- Zod schema for validating the mind map response ---
 const MindMapResponseSchema = z.object({
   nodes: z.array(z.object({
     id: z.string(),
@@ -16,6 +32,8 @@ const MindMapResponseSchema = z.object({
   })),
 });
 
+// --- POST /api/maps ---
+// Generate a mind map from user text
 router.post('/', async (req, res) => {
   const { text, detailLevel } = req.body;
   if (!text || typeof text !== 'string') {
@@ -33,6 +51,8 @@ router.post('/', async (req, res) => {
   }
 });
 
+// --- POST /api/maps/suggest-children ---
+// Get AI suggestions for children of a node
 router.post('/suggest-children', async (req, res) => {
   const { text, parentId, detailLevel } = req.body;
   if (!text || typeof text !== 'string' || !parentId || typeof parentId !== 'string') {
@@ -47,6 +67,8 @@ router.post('/suggest-children', async (req, res) => {
   }
 });
 
+// --- POST /api/maps/insight ---
+// Get AI-generated insight for a mind map
 router.post('/insight', async (req, res) => {
   const { nodes, edges, summaries, detailLevel } = req.body;
   if (!Array.isArray(nodes) || !Array.isArray(edges)) {
@@ -60,6 +82,8 @@ router.post('/insight', async (req, res) => {
   }
 });
 
+// --- POST /api/maps/semantic-clusters ---
+// Get AI-generated semantic clusters for a mind map
 router.post('/semantic-clusters', async (req, res) => {
   const { nodes, edges, detailLevel } = req.body;
   if (!Array.isArray(nodes) || !Array.isArray(edges)) {
