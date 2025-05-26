@@ -1,6 +1,17 @@
+//
+// Navbar.tsx
+//
+// This component shows the navigation bar at the top of the app.
+// - It lets users switch between Home, Dashboard, and Mind Map Editor.
+// - It is responsive: shows a hamburger menu on mobile.
+// - Uses React Router's <Link> for navigation (no page reloads).
+// - Uses Tailwind CSS for styling.
+//
+
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+// List of navigation links (add more here if you want more pages)
 const navLinks = [
   { to: '/', label: 'Home' },
   { to: '/dashboard', label: 'Dashboard' },
@@ -8,22 +19,26 @@ const navLinks = [
 ];
 
 const Navbar: React.FC = () => {
+  // State for mobile menu open/close
   const [menuOpen, setMenuOpen] = useState(false);
+  // Get the current URL path
   const location = useLocation();
 
+  // Helper to check if a link is active (for highlighting)
   const isActive = (path: string) =>
     location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
 
   return (
+    // The nav bar is sticky (always at the top)
     <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm" aria-label="Main navigation">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
+          {/* Logo and app name */}
           <div className="flex-shrink-0 flex items-center">
             <span className="text-2xl font-bold text-blue-600">🧠</span>
             <span className="ml-2 font-semibold text-lg">Synaptia</span>
           </div>
-          {/* Desktop nav */}
+          {/* Desktop navigation links (hidden on mobile) */}
           <div className="hidden md:flex space-x-6">
             {navLinks.map(link => (
               <Link
@@ -40,7 +55,7 @@ const Navbar: React.FC = () => {
               </Link>
             ))}
           </div>
-          {/* Mobile hamburger */}
+          {/* Mobile hamburger menu button (shows on small screens) */}
           <div className="md:hidden flex items-center">
             <button
               onClick={() => setMenuOpen(m => !m)}
@@ -50,6 +65,7 @@ const Navbar: React.FC = () => {
               aria-label="Open main menu"
               type="button"
             >
+              {/* Hamburger icon (changes to X when open) */}
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 {menuOpen ? (
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -61,7 +77,7 @@ const Navbar: React.FC = () => {
           </div>
         </div>
       </div>
-      {/* Mobile dropdown */}
+      {/* Mobile dropdown menu (shows when hamburger is open) */}
       <div
         className={`md:hidden transition-all duration-200 bg-white border-b border-gray-200 shadow-sm ${
           menuOpen ? 'block' : 'hidden'

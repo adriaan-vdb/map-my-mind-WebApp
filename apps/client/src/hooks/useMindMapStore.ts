@@ -1,16 +1,32 @@
+//
+// useMindMapStore.ts
+//
+// This file creates a global state store for the mind map app using Zustand.
+// - Zustand is a small, simple state management library for React.
+// - This store holds all the nodes, edges, and UI state for the mind map.
+// - It also handles saving/loading maps to localStorage.
+//
+// Learnings for beginners:
+//   - How to define TypeScript interfaces for your data
+//   - How to create a Zustand store
+//   - How to use localStorage for persistence
+//   - How to write functions to update state
+//
+
 import { create } from 'zustand';
 
+// --- TypeScript interfaces for our data ---
 export interface MindMapNode {
-  id: string;
-  label: string;
-  summary?: string;
-  aiSuggested?: boolean;
+  id: string; // Unique ID for the node
+  label: string; // The text shown in the node
+  summary?: string; // Optional summary (from AI)
+  aiSuggested?: boolean; // Was this node suggested by AI?
 }
 
 export interface MindMapEdge {
-  id?: string;
-  source: string;
-  target: string;
+  id?: string; // Optional unique ID for the edge
+  source: string; // ID of the source node
+  target: string; // ID of the target node
 }
 
 export interface MindMap {
@@ -29,6 +45,7 @@ export interface SavedMap {
   edges: MindMapEdge[];
 }
 
+// --- The shape of our global state ---
 interface MindMapState {
   nodes: MindMapNode[];
   edges: MindMapEdge[];
@@ -53,6 +70,7 @@ interface MindMapState {
   setSelectedMapId: (id: string | null) => void;
 }
 
+// --- Helper: get all maps from localStorage ---
 function getAllMaps(): SavedMap[] {
   const maps: SavedMap[] = [];
   for (let i = 0; i < localStorage.length; i++) {
@@ -73,15 +91,20 @@ function getAllMaps(): SavedMap[] {
       } catch {}
     }
   }
+  // Sort by most recent
   return maps.sort((a, b) => b.createdAt - a.createdAt);
 }
 
+// --- The Zustand store itself ---
 export const useMindMapStore = create<MindMapState & { version: number; cleanupInvalidMaps: () => void }>((set, get) => ({
+  // --- State variables ---
   nodes: [],
   edges: [],
   loading: false,
   error: null,
-  version: 0,
+  version: 0, // Used to force updates when maps change
+
+  // --- State update functions ---
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
   setLoading: (loading) => set({ loading }),
@@ -95,6 +118,8 @@ export const useMindMapStore = create<MindMapState & { version: number; cleanupI
     edges: state.edges.filter(e => e.source !== id && e.target !== id),
   })),
   selectedMapId: null,
+
+  // --- Persistence: save/load/delete maps in localStorage ---
   saveMap: (name) => {
     const now = Date.now();
     const map: SavedMap = {
@@ -130,6 +155,8 @@ export const useMindMapStore = create<MindMapState & { version: number; cleanupI
     else set({ version: get().version + 1 });
   },
   setSelectedMapId: (id) => set({ selectedMapId: id }),
+
+  // --- Helper: clean up invalid maps in localStorage ---
   cleanupInvalidMaps: () => {
     const keysToDelete: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {

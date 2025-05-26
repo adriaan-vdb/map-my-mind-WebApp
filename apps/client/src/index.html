@@ -1,12 +1,39 @@
+<!--
+  This is the main HTML file for the React app.
+  - The browser loads this file first.
+  - The React app will be injected into the <div id="root"></div> below.
+  - You usually don't need to edit this file much in a React project.
+-->
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!--
+      <meta charset="UTF-8" />
+      - Sets the character encoding so all text displays correctly.
+    -->
     <meta charset="UTF-8" />
+    <!--
+      <meta name="viewport" ... />
+      - Makes the app responsive (works on phones, tablets, etc).
+    -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      <title>Synaptia</title>
+      - The name shown in the browser tab.
+    -->
     <title>Synaptia</title>
   </head>
   <body>
+    <!--
+      This is where React will render the app.
+      The <div id="root"></div> is like a placeholder.
+      React replaces it with your components.
+    -->
     <div id="root"></div>
+    <!--
+      This script loads the main React code (main.tsx).
+      Vite (the build tool) handles this for you.
+    -->
     <script type="module" src="/main.tsx"></script>
   </body>
 </html> 

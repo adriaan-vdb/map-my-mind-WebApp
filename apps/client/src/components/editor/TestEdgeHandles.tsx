@@ -1,3 +1,17 @@
+//
+// TestEdgeHandles.tsx
+//
+// This is a minimal demo for testing Cytoscape edgehandles in React.
+// - Shows two nodes. You can drag from one to another to create an edge.
+// - Useful for learning how Cytoscape plugins work with React.
+//
+// Learnings for beginners:
+//   - How to use useRef to access Cytoscape instance
+//   - How to use useEffect for setup/cleanup
+//   - How to use CytoscapeComponent in React
+//   - How to style graphs and nodes
+//
+
 import React, { useEffect, useRef } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import Cytoscape from 'cytoscape';
@@ -10,13 +24,17 @@ if (!(Cytoscape as any).registeredEh) {
 }
 
 export default function TestEdgeHandles() {
+  // useRef lets you keep a reference to the Cytoscape instance
   const cyRef = useRef<any>(null);
 
+  // Define the nodes and edges for the graph
   const elements = [
     { data: { id: 'a', label: 'Node A' } },
     { data: { id: 'b', label: 'Node B' } },
   ];
 
+  // useEffect runs after the component mounts
+  // Here, we set up the edgehandles plugin
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -29,9 +47,11 @@ export default function TestEdgeHandles() {
       loopAllowed: () => true,
       edgeType: () => 'flat',
       complete: (sourceNode: any, targetNode: any, addedEles: any) => {
+        // This runs when an edge is created
         console.log('✔️ Edge created:', sourceNode.id(), '→', targetNode.id());
       },
     });
+    // Cleanup: destroy the plugin when the component unmounts
     return () => eh.destroy();
   }, []);
 

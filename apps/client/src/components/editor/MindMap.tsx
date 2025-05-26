@@ -1,3 +1,18 @@
+//
+// MindMap.tsx
+//
+// This is the main mind map editor component.
+//
+// Features:
+//   - Lets users enter free-form text and generate a mind map using AI (OpenAI GPT-4o)
+//   - Visualizes the mind map as a graph using Cytoscape.js
+//   - Lets users add, rename, delete, and connect nodes (ideas)
+//   - Supports AI-powered suggestions, insights, and clustering
+//   - Saves and loads maps from localStorage
+//
+// This file is large! We'll use section comments and inline comments to help you learn React step by step.
+//
+
 import React, { useState, useRef, useEffect } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import { useMindMapStore } from '../../hooks/useMindMapStore';
@@ -12,9 +27,10 @@ import fcose from 'cytoscape-fcose';
 // Fix TypeScript error for missing cytoscape-fcose types
 declare module 'cytoscape-fcose';
 
+// The API URL for talking to the backend (set in .env or defaults to localhost)
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
-// Each suggestion is an object: { label: string, value: string }
+// Example prompts to help users get started
 const SAMPLE_PROMPTS = [
   {
     label: 'Suggestion',
@@ -22,7 +38,7 @@ const SAMPLE_PROMPTS = [
   }
 ];
 
-// Debounce utility
+// Utility: debounce a function (waits before running, useful for performance)
 function debounce<T extends (...args: any[]) => void>(fn: T, ms: number) {
   let timeout: ReturnType<typeof setTimeout>;
   return (...args: Parameters<T>) => {
@@ -31,13 +47,15 @@ function debounce<T extends (...args: any[]) => void>(fn: T, ms: number) {
   };
 }
 
-// Ensure plugin registration is at the top (already present, but keep for clarity)
+// Register Cytoscape plugins (only once)
 if (!(Cytoscape as any).registeredEh) {
   Cytoscape.use(edgehandles);
   Cytoscape.use(fcose);
   (Cytoscape as any).registeredEh = true;
 }
 
+// TypeScript: extend Cytoscape with our custom property
+// (not required for beginners, but helps with plugins)
 declare global {
   interface CytoscapeCore {
     ehInstance?: any;
@@ -46,11 +64,16 @@ declare global {
 
 const greenDotSVG = true
 
+// --- Main MindMap Component ---
 export default function MindMap() {
+  // --- State variables ---
+  // These hold the current input, nodes, edges, UI state, etc.
   const [input, setInput] = useState('');
+  // Get state and actions from the global mind map store
   const {
     nodes, edges, loading, error, setNodes, setEdges, setLoading, setError, reset, addNodes, addEdges, renameNode, deleteNode, saveMap, selectedMapId
   } = useMindMapStore();
+  // More local state for UI features
   const [submitted, setSubmitted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [graphHeight, setGraphHeight] = useState(400);
@@ -85,11 +108,12 @@ export default function MindMap() {
   const [clusterOpen, setClusterOpen] = useState(false);
   const [detailLevel, setDetailLevel] = useState(5); // Default to Highly Detailed
 
-  // Typing animation for heading
+  // --- Typing animation for heading (just for fun/UI polish) ---
   const TYPING_TEXT = "enter streams of consciousness...";
   const [typedText, setTypedText] = useState("");
   const [typingForward, setTypingForward] = useState(true);
 
+  // Animate the heading text (shows how to use useEffect for timers)
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>;
     if (typingForward) {
@@ -108,7 +132,8 @@ export default function MindMap() {
     return () => clearTimeout(timeout);
   }, [typedText, typingForward]);
 
-  // Responsive graph height
+  // --- Responsive graph height ---
+  // This effect updates the graph height when the window resizes
   useEffect(() => {
     function handleResize() {
       if (containerRef.current) {
@@ -120,7 +145,8 @@ export default function MindMap() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Node menu icon overlay logic (update on drag, zoom, pan, render, layoutstop, and after nodes/edges change)
+  // --- Node menu icon overlay logic ---
+  // This effect updates the position of the node menu icon when the graph changes
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -171,14 +197,14 @@ export default function MindMap() {
     updatePositions();
   }, [nodes, edges]);
 
-  // Node menu icon click handler
+  // --- Node menu icon click handler ---
   const handleMenuIconClick = (nodeId: string, evt: React.MouseEvent) => {
     setMenuNode(nodeId);
     setMenuPos(nodeIconPositions[nodeId]);
     evt.stopPropagation();
   };
 
-  // Enable right-click on node to open NodeMenu at correct position
+  // --- Right-click on node to open NodeMenu at correct position ---
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return;
