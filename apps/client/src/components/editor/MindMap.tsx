@@ -648,21 +648,21 @@ export default function MindMap() {
             >
               <span className="text-white">{loading ? 'Generating...' : 'Generate Mind Map'}</span>
             </button>
-            <div className="flex gap-2 flex-row mt-0">
-            {SAMPLE_PROMPTS.map((prompt, i) => (
-            <button
-              key={i}
-              type="button"
-              className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition"
-              onClick={() => setInput(prompt.value)}
-              disabled={loading}
-            >
-              {prompt.label}
-            </button>
-          ))}
+            <div className="flex gap-2 flex-row mt-0 w-full">
+              {SAMPLE_PROMPTS.map((prompt, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition flex-1"
+                  onClick={() => setInput(prompt.value)}
+                  disabled={loading}
+                >
+                  {prompt.label}
+                </button>
+              ))}
               <button
                 type="button"
-                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition"
+                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition flex-1"
                 onClick={handleReformat}
                 disabled={nodes.length === 0}
               >
@@ -670,7 +670,7 @@ export default function MindMap() {
               </button>
               <button
                 type="button"
-                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition"
+                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition flex-1"
                 onClick={handleReset}
                 disabled={loading}
               >
@@ -678,14 +678,13 @@ export default function MindMap() {
               </button>
               <button
                 type="button"
-                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition"
+                className="px-5 py-2 bg-gray-100 text-gray-700 rounded-full font-semibold shadow hover:bg-gray-200 transition flex-1 flex items-center justify-center"
                 onClick={() => setShowSave(true)}
                 disabled={nodes.length === 0}
                 title="Save Map"
               >
                 <BookmarkIcon className="w-5 h-5" />
               </button>
-
             </div>
           </div>
         </form>
