@@ -228,6 +228,18 @@ export default function MindMap() {
     };
   }, [nodeIconPositions]);
 
+  // Set a token limit (adjust as needed)
+  const TOKEN_LIMIT = 2000;
+
+  // Simple token counter (words as proxy)
+  function countTokens(text: string) {
+    // You can replace this with a more accurate tokenizer if needed
+    return text.trim().split(/\s+/).filter(Boolean).length;
+  }
+
+  const tokenCount = countTokens(input);
+  const isTokenLimitExceeded = tokenCount > TOKEN_LIMIT;
+
   // Submit handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -637,14 +649,31 @@ export default function MindMap() {
             className="w-full min-h-[400px] p-4 border-2 border-blue-100 rounded-2xl bg-blue-50 focus:border-pink-300 focus:ring-2 focus:ring-pink-100 text-lg transition"
             placeholder="Try 'Planning a creative project', 'Understanding climate anxiety', or 'Exploring childhood memories'"
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={e => {
+              const value = e.target.value;
+              if (countTokens(value) <= TOKEN_LIMIT) {
+                setInput(value);
+              } else {
+                // Optionally, allow up to the limit only
+                const words = value.trim().split(/\s+/).filter(Boolean).slice(0, TOKEN_LIMIT);
+                setInput(words.join(' '));
+              }
+            }}
             disabled={loading}
           />
+          <div className="flex items-center justify-between mt-1 text-sm">
+            <span className={isTokenLimitExceeded ? 'text-red-600 font-semibold' : 'text-gray-500'}>
+              Tokens: {tokenCount} / {TOKEN_LIMIT}
+            </span>
+            {isTokenLimitExceeded && (
+              <span className="text-red-600 font-semibold ml-2">Token limit reached</span>
+            )}
+          </div>
           <div className="flex flex-col gap-2">
             <button
               type="submit"
               className="px-5 py-2 bg-blue-600 text-white rounded-full font-semibold shadow hover:bg-blue-700 transition disabled:opacity-50"
-              disabled={loading || !input.trim()}
+              disabled={loading || !input.trim() || isTokenLimitExceeded}
             >
               <span className="text-white">{loading ? 'Generating...' : 'Generate Mind Map'}</span>
             </button>
